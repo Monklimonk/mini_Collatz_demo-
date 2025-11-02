@@ -1,0 +1,84 @@
+(*
+  Mini Collatz Demo (Coq)
+  -----------------------
+  A tiny, didactic formalization of the Collatz step with a few simple
+  lemmas and computations. This file is self‑contained.
+
+  Tested with Coq ≥ 8.18.
+*)
+
+From Coq Require Import Arith Bool Lia.
+
+Set Implicit Arguments.
+Set Asymmetric Patterns.
+
+(* =========================
+   Definition Section
+   ========================= *)
+
+(** Collatz "step": if n is even, n/2, else 3n+1. *)
+Definition step (n:nat) : nat :=
+  if Nat.even n then Nat.div n 2 else (3 * n + 1)%nat.
+
+(** k‑fold iteration of a function on naturals. *)
+Fixpoint iter (k n:nat) : nat :=
+  match k with
+  | 0   => n
+  | S k => iter k (step n)
+  end.
+
+(** Simple termination predicate for the value 1. *)
+Definition term (n:nat) : bool := Nat.eqb n 1.
+
+(* A tiny auxiliary 2‑adic valuation "counter" that repeatedly halves while even.
+   We include a fuel argument to make it structurally recursive. *)
+Fixpoint v2_aux (fuel n:nat) : nat :=
+  match fuel with
+  | 0 => 0
+  | S k =>
+      if Nat.even n then S (v2_aux k (Nat.div n 2)) else 0
+  end.
+
+Definition v2 (n:nat) : nat := v2_aux n n.
+
+(** A mini "certificate": check one step decreases the pair (v2, value) lexicographically.
+    (This is only a toy boolean checker to keep the demo short.)
+ *)
+Definition dec_one (n:nat) : nat * nat := (v2 (step n), step n).
+Definition dec_now (n:nat) : nat * nat := (v2 n, n).
+
+Definition lex_le (p q : nat * nat) : bool :=
+  let '(a,b) := p in
+  let '(c,d) := q in
+  (Nat.leb a c) && (if Nat.eqb a c then Nat.leb b d else true).
+
+Definition weak_decrease (n:nat) : bool := lex_le (dec_one n) (dec_now n).
+
+(* =========================
+   Demo Section
+   ========================= *)
+
+(** Some computations. *)
+Compute (iter 10 27).     (* early prefix *)
+Compute (iter 111 27).    (* the classic bound used below *)
+Compute (term (iter 111 27)).
+
+(* =========================
+   Proof Section
+   ========================= *)
+
+Lemma collatz_27_hits1 : term (iter 111 27) = true.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem collatz_27_bound :
+  exists k, k <= 111 /\ term (iter k 27) = true.
+Proof.
+  exists 111. split; [lia|].
+  apply collatz_27_hits1.
+Qed.
+
+(* Optional: a slightly more general "hits 1 eventually" as a Prop statement.
+   Here we only prove it for the single start value 27 with the explicit bound. *)
+Theorem collatz_27_terminates :
+  exists k, term (iter k 27) = true.
+Proof. now exists 111. Qed.
